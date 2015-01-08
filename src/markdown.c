@@ -1156,7 +1156,7 @@ is_hrule(uint8_t *data, size_t size)
 		i++;
 	}
 
-	return n >= 3;
+	return 0;
 }
 
 /* check if a line begins with a code fence; return the
@@ -1442,12 +1442,12 @@ parse_paragraph(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t 
 		if (is_empty(data + i, size - i))
 			break;
 
-		if ((level = is_headerline(data + i, size - i)) != 0)
+		if (rndr->cb.hrule && (level = is_headerline(data + i, size - i)) != 0)
 			break;
 
 		if (is_atxheader(rndr, data + i, size - i) ||
-			is_hrule(data + i, size - i) ||
-			prefix_quote(data + i, size - i)) {
+			(rndr->cb.hrule && is_hrule(data + i, size - i)) ||
+			(rndr->cb.blockquote && prefix_quote(data + i, size - i))) {
 			end = i;
 			break;
 		}
@@ -1702,7 +1702,7 @@ parse_listitem(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t s
 		}
 
 		/* checking for a new item */
-		if ((has_next_uli && !is_hrule(data + beg + i, end - beg - i)) || has_next_oli) {
+		if ((has_next_uli && !(rndr->cb.hrule && is_hrule(data + beg + i, end - beg - i))) || has_next_oli) {
 			if (in_empty)
 				has_inside_empty = 1;
 
@@ -2211,7 +2211,7 @@ parse_block(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t size
 		else if ((i = is_empty(txt_data, end)) != 0)
 			beg += i;
 
-		else if (is_hrule(txt_data, end)) {
+		else if (rndr->cb.hrule && is_hrule(txt_data, end)) {
 			if (rndr->cb.hrule)
 				rndr->cb.hrule(ob, rndr->opaque);
 
@@ -2229,7 +2229,7 @@ parse_block(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t size
 			(i = parse_table(ob, rndr, txt_data, end)) != 0)
 			beg += i;
 
-		else if (prefix_quote(txt_data, end))
+		else if (rndr->cb.blockquote && prefix_quote(txt_data, end))
 			beg += parse_blockquote(ob, rndr, txt_data, end);
 
 		else if (prefix_code(txt_data, end))
