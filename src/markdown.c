@@ -1251,7 +1251,7 @@ is_codefence(uint8_t *data, size_t size, struct buf *syntax)
 static int
 is_atxheader(struct sd_markdown *rndr, uint8_t *data, size_t size)
 {
-	if (data[0] != '#')
+	if (data[0] != '#' || rndr->cb.header == NULL)
 		return 0;
 
 	if (rndr->ext_flags & MKDEXT_SPACE_HEADERS) {
@@ -1462,8 +1462,8 @@ parse_paragraph(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t 
 		 * here
 		 */
 		if ((rndr->ext_flags & MKDEXT_LAX_SPACING) && !isalnum(data[i])) {
-			if (prefix_oli(data + i, size - i) ||
-				prefix_uli(data + i, size - i)) {
+			if (rndr->cb.list && (prefix_oli(data + i, size - i) ||
+				prefix_uli(data + i, size - i))) {
 				end = i;
 				break;
 			}
@@ -1636,8 +1636,10 @@ parse_listitem(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t s
 	while (orgpre < 3 && orgpre < size && data[orgpre] == ' ')
 		orgpre++;
 
-	beg = prefix_uli(data, size);
-	if (!beg)
+    if (rndr->cb.list) {
+        beg = prefix_uli(data, size);
+    }
+	if (!beg && rndr->cb.list)
 		beg = prefix_oli(data, size);
 
 	if (!beg)
@@ -1687,8 +1689,8 @@ parse_listitem(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t s
 		/* Only check for new list items if we are **not** inside
 		 * a fenced code block */
 		if (!in_fence) {
-			has_next_uli = prefix_uli(data + beg + i, end - beg - i);
-			has_next_oli = prefix_oli(data + beg + i, end - beg - i);
+			has_next_uli = rndr->cb.list && prefix_uli(data + beg + i, end - beg - i);
+			has_next_oli = rndr->cb.list && prefix_oli(data + beg + i, end - beg - i);
 		}
 
 		/* checking for ul/ol switch */
@@ -2233,10 +2235,10 @@ parse_block(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t size
 		else if (prefix_code(txt_data, end))
 			beg += parse_blockcode(ob, rndr, txt_data, end);
 
-		else if (prefix_uli(txt_data, end))
+		else if (rndr->cb.list && prefix_uli(txt_data, end))
 			beg += parse_list(ob, rndr, txt_data, end, 0);
 
-		else if (prefix_oli(txt_data, end))
+		else if (rndr->cb.list && prefix_oli(txt_data, end))
 			beg += parse_list(ob, rndr, txt_data, end, MKD_LIST_ORDERED);
 
 		else
